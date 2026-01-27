@@ -1,4 +1,5 @@
 use anchor_lang::{
+    accounts::signer,
     prelude::*,
     system_program::{transfer, Transfer},
 };
@@ -17,9 +18,9 @@ pub mod anchor_vault_q4_25 {
         ctx.accounts.deposit(amount)
     }
 
-    // pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-    //     ctx.accounts.withdraw(amount)
-    // }
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+        ctx.accounts.withdraw(amount)
+    }
 
     // pub fn close(ctx: Context<Close>) -> Result<()> {
     //     ctx.accounts.close()
@@ -76,7 +77,7 @@ pub struct Deposit<'info> {
     pub user: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"vault", vault_state.key().as_ref()], 
+        seeds = [b"vault", vault_state.key().as_ref()],
         bump = vault_state.vault_bump,
     )]
     pub vault: SystemAccount<'info>,
@@ -105,18 +106,49 @@ impl<'info> Deposit<'info> {
     }
 }
 
-// #[derive(Accounts)]
-// pub struct Withdraw<'info> {
-// TODO: Implement Withdraw accounts
-// }
+#[derive(Accounts)]
+pub struct Withdraw<'info> {
+    // TODO: Implement Withdraw accounts
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [b"vault", vault_state.key().as_ref()],
+        bump = vault_state.vault_bump,
+    )]
+    pub vault: SystemAccount<'info>,
+    #[account(
+        seeds = [b"state", user.key().as_ref()],
+        bump = vault_state.state_bump,
+    )]
+    pub vault_state: Account<'info, VaultState>,
+    pub system_program: Program<'info, System>,
+}
+impl<'info> Withdraw<'info> {
+    pub fn withdraw(&mut self, amount: u64) -> Result<()> {
+        let vault_state_key = self.vault_state.key();
+        let seeds = [
+            b"vault".as_ref(),
+            vault_state_key.as_ref(),
+            &[self.vault_state.vault_bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
 
-// impl<'info> Withdraw<'info> {
-//     pub fn withdraw(&mut self, _amount: u64) -> Result<()> {
-//         TODO: Implement withdraw
+        transfer(
+            CpiContext::new_with_signer(
+                self.system_program.to_account_info(),
+                Transfer {
+                    from: self.vault.to_account_info(),
+                    to: self.user.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            amount,
+        )?;
 
-//         Ok(())
-//     }
-// }
+        Ok(())
+    }
+}
 
 // #[derive(Accounts)]
 // pub struct Close<'info> {
