@@ -1,6 +1,6 @@
 use anchor_lang::{
     accounts::signer,
-    prelude::*,
+    prelude::{bpf_loader_upgradeable::close, *},
     system_program::{transfer, Transfer},
 };
 
@@ -22,9 +22,9 @@ pub mod anchor_vault_q4_25 {
         ctx.accounts.withdraw(amount)
     }
 
-    // pub fn close(ctx: Context<Close>) -> Result<()> {
-    //     ctx.accounts.close()
-    // }
+    pub fn close(ctx: Context<Close>) -> Result<()> {
+        ctx.accounts.close()
+    }
 }
 
 #[derive(Accounts)]
@@ -150,17 +150,56 @@ impl<'info> Withdraw<'info> {
     }
 }
 
-// #[derive(Accounts)]
-// pub struct Close<'info> {
-//      TODO: Implement Close accounts
-// }
+#[derive(Accounts)]
+pub struct Close<'info> {
+    //  TODO: Implement Close accounts
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(
+       mut,
+       close=user,
+        seeds = [b"state", user.key().as_ref()], 
+        bump=vault_state.state_bump,
+    )]
+    pub vault_state: Account<'info, VaultState>,
+    #[account(
+        mut,
+        seeds = [b"vault", vault_state.key().as_ref()],
+        bump=vault_state.vault_bump,
+    )]
+    pub vault: SystemAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
 
-// impl<'info> Close<'info> {
-//     pub fn close(&mut self) -> Result<()> {
-//          TODO: Implement close
-//         Ok(())
-//     }
-// }
+impl<'info> Close<'info> {
+    pub fn close(&mut self) -> Result<()> {
+        //  TODO: Implement close
+        //first as get balance then transfer all remainingng balance to user close the transfer the rent also
+        let vault_state_key = self.vault_state.key();
+
+        let remaining_balance = self.vault.lamports();
+
+        let seeds = [
+            b"vault".as_ref(),
+            vault_state_key.as_ref(),
+            &[self.vault_state.vault_bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        transfer(
+            CpiContext::new_with_signer(
+                self.system_program.to_account_info(),
+                Transfer {
+                    from: self.vault.to_account_info(),
+                    to: self.user.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            remaining_balance,
+        )?;
+        Ok(())
+    }
+}
 
 #[derive(InitSpace)]
 #[account]
