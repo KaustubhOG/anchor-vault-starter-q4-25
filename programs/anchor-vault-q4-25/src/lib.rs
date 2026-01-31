@@ -1,6 +1,5 @@
 use anchor_lang::{
-    accounts::signer,
-    prelude::{bpf_loader_upgradeable::close, *},
+    prelude::*,
     system_program::{transfer, Transfer},
 };
 
@@ -36,7 +35,7 @@ pub struct Initialize<'info> {
         payer = user,
         seeds = [b"state", user.key().as_ref()], 
         bump,
-        space = VaultState::DISCRIMINATOR.len() + VaultState::INIT_SPACE,
+        space = 8 + VaultState::INIT_SPACE,
     )]
     pub vault_state: Account<'info, VaultState>,
     #[account(
@@ -50,10 +49,8 @@ pub struct Initialize<'info> {
 
 impl<'info> Initialize<'info> {
     pub fn initialize(&mut self, bumps: &InitializeBumps) -> Result<()> {
-        // Get the amount of lamports needed to make the vault rent exempt
-        let rent_exempt = Rent::get()?.minimum_balance(self.vault.to_account_info().data_len());
+        let rent_exempt = Rent::get()?.minimum_balance(0);
 
-        // Transfer the rent-exempt amount from the user to the vault
         let cpi_program = self.system_program.to_account_info();
         let cpi_accounts = Transfer {
             from: self.user.to_account_info(),
@@ -108,7 +105,6 @@ impl<'info> Deposit<'info> {
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    // TODO: Implement Withdraw accounts
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(
@@ -124,6 +120,7 @@ pub struct Withdraw<'info> {
     pub vault_state: Account<'info, VaultState>,
     pub system_program: Program<'info, System>,
 }
+
 impl<'info> Withdraw<'info> {
     pub fn withdraw(&mut self, amount: u64) -> Result<()> {
         let vault_state_key = self.vault_state.key();
@@ -152,20 +149,19 @@ impl<'info> Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct Close<'info> {
-    //  TODO: Implement Close accounts
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(
-       mut,
-       close=user,
+        mut,
+        close = user,
         seeds = [b"state", user.key().as_ref()], 
-        bump=vault_state.state_bump,
+        bump = vault_state.state_bump,
     )]
     pub vault_state: Account<'info, VaultState>,
     #[account(
         mut,
         seeds = [b"vault", vault_state.key().as_ref()],
-        bump=vault_state.vault_bump,
+        bump = vault_state.vault_bump,
     )]
     pub vault: SystemAccount<'info>,
     pub system_program: Program<'info, System>,
@@ -173,8 +169,6 @@ pub struct Close<'info> {
 
 impl<'info> Close<'info> {
     pub fn close(&mut self) -> Result<()> {
-        //  TODO: Implement close
-        //first as get balance then transfer all remainingng balance to user close the transfer the rent also
         let vault_state_key = self.vault_state.key();
 
         let remaining_balance = self.vault.lamports();
@@ -197,6 +191,7 @@ impl<'info> Close<'info> {
             ),
             remaining_balance,
         )?;
+        
         Ok(())
     }
 }
